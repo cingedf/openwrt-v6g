@@ -1,0 +1,28 @@
+#!/bin/sh
+# Qihoo 360 V6G (qihoo_360t6gs) first-boot defaults
+
+# LAN IP keeps continuity with the RAM-initramfs session (192.168.123.1)
+uci set network.lan.ipaddr='192.168.123.1'
+uci set network.lan.netmask='255.255.255.0'
+
+# V6G physical ports: exactly three LAN ports in br-lan, WAN on its own port
+if [ -n "$(uci -q get network.@device[0])" ]; then
+	uci -q del network.@device[0].ports
+	uci add_list network.@device[0].ports='lan1'
+	uci add_list network.@device[0].ports='lan2'
+	uci add_list network.@device[0].ports='lan3'
+fi
+
+# WAN device from DTS label
+if [ -n "$(uci -q get network.wan)" ]; then
+	uci set network.wan.device='wan'
+fi
+
+uci commit network
+
+# Wireless country default (radios appear after wifi detect at first boot)
+if [ -f /etc/config/wireless ]; then
+	uci -q set wireless.radio0.country='CN' || true
+	uci -q set wireless.radio1.country='CN' || true
+	uci commit wireless
+fi

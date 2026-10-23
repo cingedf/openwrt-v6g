@@ -1,0 +1,203 @@
+name: Build Qihoo 360 V6G (360t6gs) - OpenWrt 25.12.5
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OPENWRT_REF: v25.12.5
+  OPENWRT_REPO: https://github.com/openwrt/openwrt.git
+  TZ: Asia/Shanghai
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 1G
+
+jobs:
+  build:
+    name: Official OpenWrt build for Qihoo 360 V6G (qihoo_360t6gs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout configuration repository
+        uses: actions/checkout@v5
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-openwrt-25.12.5-v6g-${{ hashFiles('config/v6g_minimal.config', 'diy-part2.sh', 'dts/**', 'mt7621-qihoo-device.mk', 'files/**', '.github/workflows/build.yml') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-25.12.5-v6g-${{ hashFiles('config/v6g_minimal.config', 'diy-part2.sh', 'dts/**', 'mt7621-qihoo-device.mk', 'files/**', '.github/workflows/build.yml') }}-
+            ${{ runner.os }}-openwrt-25.12.5-v6g-
+
+      - name: Free disk space and inspect runner
+        run: |
+          set -Eeuo pipefail
+          df -h
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet \
+            /usr/local/share/powershell /usr/local/share/chromium /opt/microsoft
+          sudo apt-get clean
+          sudo docker image prune -af 2>/dev/null || true
+          df -h
+
+      - name: Install OpenWrt build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc build-essential binutils-gold bison clang ccache ecj fastjar file flex \
+            g++ g++-multilib gcc gcc-multilib gawk gettext git help2man \
+            libelf-dev liblzma-dev libncurses-dev libssl-dev mtd-utils \
+            python3-dev python3-pip python3-setuptools rsync subversion swig \
+            time unzip wget xsltproc xxd zip zlib1g-dev zstd
+          sudo timedatectl set-timezone "$TZ"
+          df -h
+
+      - name: Configure ccache after installing it
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$CCACHE_DIR"
+          ccache --max-size="$CCACHE_MAXSIZE"
+          ccache --set-config=compression=true
+          ccache --set-config=compiler_check=content
+          ccache --zero-stats
+
+      - name: Clone pinned official stable source
+        run: |
+          set -Eeuo pipefail
+          SOURCE_DIR="$RUNNER_TEMP/openwrt-src"
+          rm -rf "$SOURCE_DIR"
+          git clone --depth 1 --single-branch --branch "$OPENWRT_REF" "$OPENWRT_REPO" "$SOURCE_DIR"
+          echo "SOURCE_DIR=$SOURCE_DIR" >> "$GITHUB_ENV"
+          {
+            echo "OpenWrt ref: $OPENWRT_REF"
+            echo "OpenWrt commit: $(git -C "$SOURCE_DIR" rev-parse HEAD)"
+            echo "Build UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } | tee "$GITHUB_WORKSPACE/source-info.txt"
+
+      - name: Update feeds and apply V6G board overlay
+        run: |
+          set -Eeuo pipefail
+          cd "$SOURCE_DIR"
+          ./scripts/feeds update -a
+          # Only install packages from base feed (routing/telephony/video feeds not needed)
+          ./scripts/feeds install -a -p base
+          ./scripts/feeds install -a -p packages
+          chmod +x "$GITHUB_WORKSPACE/diy-part2.sh"
+          "$GITHUB_WORKSPACE/diy-part2.sh"
+          make defconfig
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          cp .config "$GITHUB_WORKSPACE/artifacts/resolved-openwrt.config"
+          {
+            for feed_dir in feeds/*; do
+              [ -d "$feed_dir/.git" ] || continue
+              printf '%s %s\n' "$(basename "$feed_dir")" "$(git -C "$feed_dir" rev-parse HEAD)"
+            done
+          } | tee "$GITHUB_WORKSPACE/feeds-info.txt"
+
+      - name: Assert target, USB, WiFi and LuCI packages
+        run: |
+          set -Eeuo pipefail
+          cd "$SOURCE_DIR"
+          expect_y() {
+            grep -Fxq "$1=y" .config || { echo "::error::Required config missing: $1=y"; exit 1; }
+            echo "[OK] $1"
+          }
+
+          for symbol in \
+            CONFIG_TARGET_ramips CONFIG_TARGET_ramips_mt7621 \
+            CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360t6gs \
+            CONFIG_PACKAGE_base-files CONFIG_PACKAGE_busybox CONFIG_PACKAGE_procd \
+            CONFIG_PACKAGE_netifd CONFIG_PACKAGE_ubus CONFIG_PACKAGE_ubusd CONFIG_PACKAGE_uci \
+            CONFIG_PACKAGE_logd CONFIG_PACKAGE_dropbear CONFIG_PACKAGE_dnsmasq-full \
+            CONFIG_PACKAGE_firewall4 CONFIG_PACKAGE_nftables-json CONFIG_PACKAGE_curl \
+            CONFIG_PACKAGE_ca-bundle CONFIG_PACKAGE_ip-tiny CONFIG_PACKAGE_uclient-fetch \
+            CONFIG_PACKAGE_kmod-nft-core CONFIG_PACKAGE_kmod-nft-conntrack CONFIG_PACKAGE_kmod-nft-nat \
+            CONFIG_PACKAGE_kmod-nf-conntrack CONFIG_PACKAGE_kmod-nf-nat \
+            CONFIG_PACKAGE_kmod-mt7915-firmware CONFIG_PACKAGE_kmod-mac80211 CONFIG_PACKAGE_kmod-cfg80211 \
+            CONFIG_PACKAGE_kmod-mt76-core \
+            CONFIG_PACKAGE_kmod-usb3 CONFIG_PACKAGE_kmod-usb-storage \
+            CONFIG_PACKAGE_luci CONFIG_PACKAGE_luci-base CONFIG_PACKAGE_luci-mod-admin-full \
+            CONFIG_PACKAGE_uhttpd CONFIG_PACKAGE_rpcd \
+            CONFIG_PACKAGE_ppp CONFIG_PACKAGE_ppp-mod-pppoe CONFIG_PACKAGE_kmod-ppp \
+            CONFIG_PACKAGE_kmod-pppoe CONFIG_PACKAGE_kmod-pppox CONFIG_PACKAGE_kmod-slhc \
+            CONFIG_PACKAGE_wpad-basic-mbedtls \
+            CONFIG_PACKAGE_htop CONFIG_PACKAGE_tcpdump CONFIG_PACKAGE_iperf3 \
+            CONFIG_PACKAGE_bash CONFIG_PACKAGE_nano CONFIG_PACKAGE_openssh-sftp-server \
+            CONFIG_PACKAGE_libopenssl CONFIG_PACKAGE_ip-full CONFIG_PACKAGE_ipv6helper \
+            CONFIG_PACKAGE_kmod-tun CONFIG_PACKAGE_ddns-scripts CONFIG_PACKAGE_irqbalance \
+            CONFIG_PACKAGE_zlib; do
+            expect_y "$symbol"
+          done
+
+          cp .config "$GITHUB_WORKSPACE/artifacts/resolved-openwrt.config"
+
+      - name: Download sources
+        run: |
+          set -Eeuo pipefail
+          cd "$SOURCE_DIR"
+          make download -j"$(nproc)"
+          df -h
+
+      - name: Compile firmware
+        run: |
+          set -Eeuo pipefail
+          cd "$SOURCE_DIR"
+          make -j"$(nproc)" V=s 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          ccache --show-stats | tee "$GITHUB_WORKSPACE/ccache-stats.txt"
+
+      - name: Verify final manifest and gather firmware
+        run: |
+          set -Eeuo pipefail
+          TARGET_DIR="$SOURCE_DIR/bin/targets/ramips/mt7621"
+          [ -d "$TARGET_DIR" ] || { echo '::error::Expected ramips/mt7621 target output missing'; exit 1; }
+          cp "$GITHUB_WORKSPACE/source-info.txt" "$GITHUB_WORKSPACE/artifacts/"
+          cp "$GITHUB_WORKSPACE/feeds-info.txt" "$GITHUB_WORKSPACE/artifacts/"
+          cp "$GITHUB_WORKSPACE/ccache-stats.txt" "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
+          cp "$TARGET_DIR"/*qihoo_360t6gs*.bin "$GITHUB_WORKSPACE/artifacts/"
+          cp "$TARGET_DIR"/*.manifest "$GITHUB_WORKSPACE/artifacts/"
+          cp "$TARGET_DIR"/config.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
+          cp "$TARGET_DIR"/feeds.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
+          cp "$TARGET_DIR"/version.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
+
+          for suffix in initramfs-kernel.bin factory.bin sysupgrade.bin; do
+            find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name "*qihoo_360t6gs-$suffix" -print -quit | grep -q . \
+              || { echo "::error::Missing V6G image type: $suffix"; exit 1; }
+          done
+
+          MANIFEST="$(find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name '*.manifest' -print -quit)"
+          [ -n "$MANIFEST" ] || { echo '::error::Missing final package manifest'; exit 1; }
+          for pkg in base-files busybox procd netifd ubus ubusd uci logd dropbear dnsmasq-full firewall4 \
+                     nftables-json curl ca-bundle ip-tiny uclient-fetch \
+                     kmod-mt7915-firmware kmod-mac80211 kmod-mt76-core kmod-usb3 kmod-usb-storage \
+                     luci uhttpd rpcd wpad-basic-mbedtls ppp ppp-mod-pppoe; do
+            grep -Eq "^${pkg}[[:space:]]" "$MANIFEST" || { echo "::error::Required package missing from manifest: $pkg"; exit 1; }
+          done
+          (cd "$GITHUB_WORKSPACE/artifacts" && sha256sum *qihoo_360t6gs*.bin > SHA256SUMS)
+          ls -lh "$GITHUB_WORKSPACE/artifacts"
+          df -h
+
+      - name: Upload firmware and build metadata
+        uses: actions/upload-artifact@v6
+        with:
+          name: Qihoo-360-V6G-OpenWrt-25.12.5
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Qihoo-360-V6G-Build-Log
+          path: |
+            build.log
+            source-info.txt
+            feeds-info.txt
+            ccache-stats.txt
+          if-no-files-found: ignore
+          retention-days: 14
