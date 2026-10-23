@@ -86,6 +86,7 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a -p base
           ./scripts/feeds install -a -p packages
+          ./scripts/feeds install -a -p luci
           chmod +x "$GITHUB_WORKSPACE/diy-part2.sh"
           "$GITHUB_WORKSPACE/diy-part2.sh"
           make defconfig
