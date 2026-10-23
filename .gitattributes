@@ -1,0 +1,8 @@
+* text=auto
+eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.config text eol=lf
+*.dts text eol=lf
+*.mk text eol=lf
+99-* text eol=lf
