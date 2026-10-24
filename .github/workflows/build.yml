@@ -161,8 +161,8 @@ jobs:
           cp "$TARGET_DIR"/feeds.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
           cp "$TARGET_DIR"/version.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
 
-          for suffix in initramfs-kernel.bin factory.bin sysupgrade.bin; do
-            find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name "*qihoo_360t6gs-$suffix" -print -quit | grep -q . \
+          for suffix in initramfs-kernel.bin squashfs-factory.bin squashfs-sysupgrade.bin; do
+            find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name "*qihoo_360t6gs*$suffix" -print -quit | grep -q . \
               || { echo "::error::Missing V6G image type: $suffix"; exit 1; }
           done
 
