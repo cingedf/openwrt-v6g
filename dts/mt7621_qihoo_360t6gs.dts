@@ -10,10 +10,15 @@
 	model = "Qihoo 360 V6G";
 
 	aliases {
+		/* Official LED semantics (LYQV6G manual):
+		 * red blinking = booting / upgrading
+		 * red solid    = no internet access
+		 * green solid  = internet access OK (switched by v6g-led service)
+		 */
 		led-boot = &led_sys_red;
 		led-failsafe = &led_sys_red;
-		led-running = &led_sys_green;
-		led-upgrade = &led_sys_green;
+		led-running = &led_sys_red;
+		led-upgrade = &led_sys_red;
 	};
 
 	chosen {

@@ -1,0 +1,48 @@
+#!/bin/sh
+# 360 V6G status LED daemon
+#
+# Official LYQV6G manual LED semantics:
+#   green solid  = internet access OK
+#   red solid    = no internet access
+#   red blinking = booting / upgrading (handled by /etc/diag.sh)
+#
+# This daemon keeps the LEDs in sync with real internet reachability.
+
+LEDS=/sys/class/leds
+
+led_set() {
+	[ -e "$LEDS/$1/brightness" ] || return 0
+	echo none > "$LEDS/$1/trigger" 2>/dev/null
+	echo "$2" > "$LEDS/$1/brightness" 2>/dev/null
+}
+
+have_default_route() {
+	awk 'NR > 1 && $2 == "00000000" { found = 1 } END { exit !found }' /proc/net/route 2>/dev/null
+}
+
+probe_internet() {
+	ping -c 1 -W 2 223.5.5.5 >/dev/null 2>&1 && return 0
+	ping -c 1 -W 2 119.29.29.29 >/dev/null 2>&1 && return 0
+	return 1
+}
+
+upgrading() {
+	pgrep -f 'sysupgrade|/lib/upgrade/stage2' >/dev/null 2>&1
+}
+
+while true; do
+	if upgrading; then
+		sleep 5
+		continue
+	fi
+
+	if have_default_route && probe_internet; then
+		led_set red:sys 0
+		led_set green:sys 1
+	else
+		led_set green:sys 0
+		led_set red:sys 1
+	fi
+
+	sleep 15
+done
