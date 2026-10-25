@@ -141,10 +141,15 @@ jobs:
           done
 
           expect_y CONFIG_DROPBEAR_SCP
-          expect_y CONFIG_BUSYBOX_CONFIG_CHPASSWD
-          expect_y CONFIG_BUSYBOX_CONFIG_CROND
-          expect_y CONFIG_BUSYBOX_CONFIG_CRONTAB
-          expect_y CONFIG_BUSYBOX_CONFIG_SWAPON
+
+          # BusyBox applets ShellCrash and the first-boot script rely on. These are
+          # default-on applets, asserted through the DEFAULT_* symbols that actually
+          # exist in .config (CONFIG_BUSYBOX_CONFIG_* requires BUSYBOX_CUSTOM=y).
+          expect_y CONFIG_BUSYBOX_DEFAULT_CROND
+          expect_y CONFIG_BUSYBOX_DEFAULT_CRONTAB
+          expect_y CONFIG_BUSYBOX_DEFAULT_SWAPON
+          expect_y CONFIG_BUSYBOX_DEFAULT_MKSWAP
+          expect_y CONFIG_BUSYBOX_DEFAULT_PASSWD
 
           cp .config "$GITHUB_WORKSPACE/artifacts/resolved-openwrt.config"
 

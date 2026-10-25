@@ -33,9 +33,15 @@ uci -q set system.@system[0].zram_priority='100'
 uci commit system
 [ -x /etc/init.d/zram ] && /etc/init.d/zram enable
 
-# Root password: the image ships with this documented default and the Wi-Fi is open,
-# so change it in LuCI/SSH immediately after the first boot.
-printf '%s\n' 'root:password' | chpasswd
+# Root password "password", pre-hashed here because the image has no chpasswd
+# (CHPASSWD is off in the shipped busybox defaults). The Wi-Fi is open, so change
+# this in LuCI/SSH immediately after the first boot.
+ROOT_HASH='$6$vHb.WkW/PuYgn6sC$xTety3Gu990NoQQiOoRYpvvecUThDHa4S0AZfXZtIxzQ5JannoInmWUlNmzLUg/PzulsPnheixu87xKl0ebVX1'
+if [ -f /etc/shadow ]; then
+	sed -i "s|^root:[^:]*:|root:${ROOT_HASH}:|" /etc/shadow
+else
+	printf '%s\n' "root:${ROOT_HASH}:0:0:99999:7:::" >> /etc/shadow
+fi
 
 # Status LED service (official manual semantics: green solid = internet OK,
 # red solid = no internet; boot/upgrade blinking handled by diag.sh aliases)
