@@ -176,6 +176,10 @@
 	/delete-property/ interrupts;
 };
 
+&pcie {
+	status = "okay";
+};
+
 &pcie1 {
 	wifi@0,0 {
 		compatible = "mediatek,mt76";
