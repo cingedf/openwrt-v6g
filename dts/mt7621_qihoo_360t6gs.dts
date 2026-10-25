@@ -154,18 +154,22 @@
 &switch0 {
 	status = "okay";
 
-	/* Port index -> physical label follows the upstream 360T6GS board
-	 * (mt7621_qihoo_360t6gs.dts): port0 = lan1, port1 = lan2, port2 = lan3,
-	 * port3 = wan, matching the stock V6G DTB portmap "lllwl" (0/1/2/4 lan,
-	 * 3 wan). The V6G chassis only has two LAN jacks, so the 360T6GS lan3
-	 * (port2) is not wired. */
+	/* Measured on the real V6G (RAM image, cable moved jack by jack):
+	 *   the two LAN jacks are switch port1 and port2, the WAN jack is port3.
+	 *   port1 = lan1, port2 = lan2, port3 = wan; port0 and port4 are not wired
+	 *   (port0/port4 belong to the 360T6GS portmap "lllwl" which shares this
+	 *   SoC, the V6G chassis only has three jacks). */
 	ports {
 		port@0 {
+			status = "disabled";
+		};
+
+		port@1 {
 			status = "okay";
 			label = "lan1";
 		};
 
-		port@1 {
+		port@2 {
 			status = "okay";
 			label = "lan2";
 		};
