@@ -177,6 +177,11 @@
 };
 
 &pcie {
+	/* mt7621.dtsi ships this controller disabled, so the MT7915 on the bus
+	 * was never enumerated in round 7. The dtsi already carries
+	 *	pinctrl-0 = <&pcie_pins>;  (group "pcie" muxed to gpio)
+	 *	reset-gpios = <&gpio 19 GPIO_ACTIVE_LOW>;
+	 * which matches the stock V6G DTB, so only the status needs flipping. */
 	status = "okay";
 };
 
