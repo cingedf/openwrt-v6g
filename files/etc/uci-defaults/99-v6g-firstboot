@@ -5,7 +5,7 @@
 uci set network.lan.ipaddr='192.168.123.1'
 uci set network.lan.netmask='255.255.255.0'
 
-# V6G physical ports: exactly two LAN ports in br-lan (switch port1/port2), WAN on switch port3
+# V6G physical ports: exactly two LAN jacks in br-lan (switch port0/port1), WAN on switch port3
 if [ -n "$(uci -q get network.@device[0])" ]; then
 	uci -q del network.@device[0].ports
 	uci add_list network.@device[0].ports='lan1'
