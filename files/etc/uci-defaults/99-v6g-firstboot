@@ -19,6 +19,24 @@ fi
 
 uci commit network
 
+# ShellCrash uses nftables TProxy. Hardware/software flow offloading bypasses the
+# nftables forward path, so both must stay off or proxied traffic leaks unproxied.
+uci -q set firewall.@defaults[0].flow_offloading='0'
+uci -q set firewall.@defaults[0].flow_offloading_hw='0'
+uci commit firewall
+
+# ZRAM is compressed swap, not extra physical RAM: no memory is used until swap
+# pages are written. Conservative LZO algorithm, high swap priority.
+uci -q set system.@system[0].zram_size_mb='64'
+uci -q set system.@system[0].zram_comp_algo='lzo'
+uci -q set system.@system[0].zram_priority='100'
+uci commit system
+[ -x /etc/init.d/zram ] && /etc/init.d/zram enable
+
+# Root password: the image ships with this documented default and the Wi-Fi is open,
+# so change it in LuCI/SSH immediately after the first boot.
+printf '%s\n' 'root:password' | chpasswd
+
 # Status LED service (official manual semantics: green solid = internet OK,
 # red solid = no internet; boot/upgrade blinking handled by diag.sh aliases)
 for f in /etc/init.d/v6g-led /usr/sbin/v6g-led-daemon; do

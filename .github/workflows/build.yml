@@ -99,7 +99,7 @@ jobs:
             done
           } | tee "$GITHUB_WORKSPACE/feeds-info.txt"
 
-      - name: Assert target and required packages
+      - name: Assert target, ShellCrash requirements and package pruning
         run: |
           set -Eeuo pipefail
           cd "$SOURCE_DIR"
@@ -107,29 +107,44 @@ jobs:
             grep -Fxq "$1=y" .config || { echo "::error::Required config missing: $1=y"; exit 1; }
             echo "[OK] $1"
           }
+          expect_not_y() {
+            if grep -Eq "^$1=[ym]$" .config; then echo "::error::Must be disabled: $1"; exit 1; fi
+            echo "[OK] disabled: $1"
+          }
 
           for symbol in \
             CONFIG_TARGET_ramips CONFIG_TARGET_ramips_mt7621 \
-            CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360t6gs \
+            CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360t6gs CONFIG_TARGET_ROOTFS_SQUASHFS \
             CONFIG_PACKAGE_base-files CONFIG_PACKAGE_busybox CONFIG_PACKAGE_procd \
             CONFIG_PACKAGE_netifd CONFIG_PACKAGE_ubus CONFIG_PACKAGE_ubusd CONFIG_PACKAGE_uci \
             CONFIG_PACKAGE_logd CONFIG_PACKAGE_dropbear CONFIG_PACKAGE_dnsmasq-full \
-            CONFIG_PACKAGE_firewall4 CONFIG_PACKAGE_nftables-json CONFIG_PACKAGE_curl \
-            CONFIG_PACKAGE_ca-bundle CONFIG_PACKAGE_ip-tiny CONFIG_PACKAGE_uclient-fetch \
-            CONFIG_PACKAGE_kmod-mt7915-firmware CONFIG_PACKAGE_kmod-mac80211 \
-            CONFIG_PACKAGE_kmod-cfg80211 CONFIG_PACKAGE_kmod-mt76-core \
+            CONFIG_PACKAGE_dnsmasq_full_dhcp CONFIG_PACKAGE_dnsmasq_full_nftset \
+            CONFIG_PACKAGE_firewall4 CONFIG_PACKAGE_nftables-json \
+            CONFIG_PACKAGE_kmod-nft-core CONFIG_PACKAGE_kmod-nft-conntrack CONFIG_PACKAGE_kmod-nft-nat \
+            CONFIG_PACKAGE_kmod-nft-socket CONFIG_PACKAGE_kmod-nft-tproxy \
+            CONFIG_PACKAGE_kmod-nf-conntrack CONFIG_PACKAGE_kmod-nf-nat CONFIG_PACKAGE_kmod-nf-tproxy \
+            CONFIG_PACKAGE_curl CONFIG_PACKAGE_ca-bundle CONFIG_PACKAGE_ip-tiny CONFIG_PACKAGE_uclient-fetch \
+            CONFIG_PACKAGE_kmod-tun CONFIG_PACKAGE_kmod-zram CONFIG_PACKAGE_zram-swap \
+            CONFIG_PACKAGE_ppp CONFIG_PACKAGE_ppp-mod-pppoe CONFIG_PACKAGE_kmod-ppp \
+            CONFIG_PACKAGE_kmod-pppoe CONFIG_PACKAGE_kmod-pppox CONFIG_PACKAGE_kmod-slhc \
+            CONFIG_PACKAGE_wpad-basic-mbedtls CONFIG_PACKAGE_kmod-mac80211 CONFIG_PACKAGE_kmod-cfg80211 \
+            CONFIG_PACKAGE_kmod-mt76-core CONFIG_PACKAGE_kmod-mt7915e CONFIG_PACKAGE_kmod-mt7915-firmware \
             CONFIG_PACKAGE_kmod-usb3 CONFIG_PACKAGE_kmod-usb-storage \
-            CONFIG_PACKAGE_kmod-usb-ledtrig-usbport \
             CONFIG_PACKAGE_luci CONFIG_PACKAGE_luci-base CONFIG_PACKAGE_luci-mod-admin-full \
-            CONFIG_PACKAGE_luci-theme-bootstrap CONFIG_PACKAGE_uhttpd CONFIG_PACKAGE_rpcd \
-            CONFIG_PACKAGE_ppp CONFIG_PACKAGE_ppp-mod-pppoe \
-            CONFIG_PACKAGE_wpad-basic-mbedtls \
-            CONFIG_PACKAGE_htop CONFIG_PACKAGE_tcpdump \
-            CONFIG_PACKAGE_iperf3 CONFIG_PACKAGE_bash CONFIG_PACKAGE_nano \
-            CONFIG_PACKAGE_openssh-sftp-server CONFIG_PACKAGE_libopenssl \
-            CONFIG_PACKAGE_kmod-tun CONFIG_PACKAGE_ddns-scripts CONFIG_PACKAGE_irqbalance; do
+            CONFIG_PACKAGE_luci-theme-bootstrap CONFIG_PACKAGE_uhttpd CONFIG_PACKAGE_rpcd; do
             expect_y "$symbol"
           done
+
+          # Packages intentionally pruned to match the rm2100 appliance policy.
+          for pkg in htop tcpdump iperf3 bash nano ddns-scripts irqbalance openssh-sftp-server ip-full; do
+            expect_not_y "CONFIG_PACKAGE_${pkg}"
+          done
+
+          expect_y CONFIG_DROPBEAR_SCP
+          expect_y CONFIG_BUSYBOX_CONFIG_CHPASSWD
+          expect_y CONFIG_BUSYBOX_CONFIG_CROND
+          expect_y CONFIG_BUSYBOX_CONFIG_CRONTAB
+          expect_y CONFIG_BUSYBOX_CONFIG_SWAPON
 
           cp .config "$GITHUB_WORKSPACE/artifacts/resolved-openwrt.config"
 
@@ -169,11 +184,16 @@ jobs:
           MANIFEST="$(find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name '*.manifest' -print -quit)"
           [ -n "$MANIFEST" ] || { echo '::error::Missing final package manifest'; exit 1; }
           for pkg in base-files busybox procd netifd dropbear dnsmasq-full firewall4 \
-                     curl ca-bundle ip-tiny \
-                     kmod-mt7915-firmware kmod-mac80211 kmod-mt76-core kmod-usb3 kmod-usb-storage \
-                     luci-base luci-mod-admin-full uhttpd rpcd wpad-basic-mbedtls ppp-mod-pppoe; do
+                     nftables-json curl ca-bundle ip-tiny ppp ppp-mod-pppoe wpad-basic-mbedtls \
+                     kmod-mt7915e kmod-mt7915-firmware kmod-mac80211 kmod-mt76-core \
+                     kmod-usb3 kmod-usb-storage kmod-tun kmod-zram zram-swap \
+                     kmod-nft-socket kmod-nft-tproxy kmod-nf-tproxy \
+                     luci-base luci-mod-admin-full uhttpd rpcd; do
             grep -Eq "^${pkg}[[:space:]]" "$MANIFEST" || { echo "::error::Required package missing from manifest: $pkg"; exit 1; }
           done
+          if grep -Eq '^(htop|tcpdump|iperf3|bash|nano|ddns-scripts|irqbalance|openssh-sftp-server|ip-full)([[:space:]]|$)' "$MANIFEST"; then
+            echo '::error::A pruned package leaked into the image manifest'; exit 1
+          fi
           (cd "$GITHUB_WORKSPACE/artifacts" && sha256sum *qihoo_360t6gs*.bin > SHA256SUMS)
           ls -lh "$GITHUB_WORKSPACE/artifacts"
           df -h
