@@ -12,6 +12,7 @@ die() { printf '::error::%s\n' "$*" >&2; exit 1; }
 [ -f "$GITHUB_WORKSPACE/dts/mt7621_qihoo_360t6gs.dts" ]       || die 'Missing V6G device dts'
 [ -f "$GITHUB_WORKSPACE/mt7621-qihoo-device.mk" ]             || die 'Missing Device block append'
 [ -f "$GITHUB_WORKSPACE/files/etc/uci-defaults/99-v6g-firstboot" ] || die 'Missing first-boot UCI defaults'
+[ -f "$GITHUB_WORKSPACE/files/etc/board.d/98-qihoo-360t6gs" ] || die 'Missing port-map board.d override'
 [ -f Makefile ] && [ -d target/linux/ramips ] || die 'Run from official OpenWrt source root'
 
 ref="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
@@ -33,5 +34,6 @@ cat "$GITHUB_WORKSPACE/mt7621-qihoo-device.mk" >> target/linux/ramips/image/mt76
 mkdir -p files
 cp -a "$GITHUB_WORKSPACE/files/." files/
 chmod 0755 files/etc/uci-defaults/99-v6g-firstboot
+chmod 0644 files/etc/board.d/98-qihoo-360t6gs
 
 log "Official OpenWrt ${ref} ($(git rev-parse --short=12 HEAD)) + qihoo_360t6gs board overlay applied."
