@@ -1,0 +1,34 @@
+#!/bin/sh
+# files/etc/board.d/98-qihoo-360t6gs
+#
+# Qihoo 360 V6G (mt7621 qihoo,360t6gs) port-map override.
+#
+# The generic ramips 02_network catch-all case (*) declares
+# "lan1 lan2 lan3 lan4" + wan for every unknown board. The V6G
+# device tree only instantiates three DSA ports: lan1, lan2, wan.
+# Without this file LuCI's status page renders two phantom jacks
+# (lan3/lan4) forever showing "no link", and a re-run of
+# config_generate would create bridge ports that cannot exist.
+#
+# Sorted after 02_network (98 > 02): board_config_update() loads
+# the board.json produced so far, the case below rewrites the
+# network section for this board, board_config_flush() saves it.
+# Then config_generate turns it into /etc/config/network, and the
+# 99-v6g-firstboot uci-defaults stays authoritative for LAN ip/wifi.
+#
+
+. /lib/functions.sh
+. /lib/functions/uci-defaults.sh
+. /lib/functions/system.sh
+
+board_config_update
+
+board=$(board_name)
+
+case "$board" in
+qihoo,360t6gs)
+	ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"
+	;;
+esac
+
+board_config_flush
