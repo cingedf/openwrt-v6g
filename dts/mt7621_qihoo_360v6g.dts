@@ -6,7 +6,7 @@
 #include <dt-bindings/input/input.h>
 
 / {
-	compatible = "qihoo,360t6gs", "mediatek,mt7621-soc";
+	compatible = "qihoo,360v6g", "mediatek,mt7621-soc";
 	model = "Qihoo 360 V6G";
 
 	aliases {
@@ -152,10 +152,10 @@
 	status = "okay";
 
 	/* Measured on the real V6G (RAM image, cable moved jack by jack):
-	 *   the two LAN jacks are switch port1 and port2, the WAN jack is port3.
-	 *   port1 = lan1, port2 = lan2, port3 = wan; port0 and port4 are not wired
-	 *   (port0/port4 belong to the 360T6GS portmap "lllwl" which shares this
-	 *   SoC, the V6G chassis only has three jacks). */
+	 *   port1 = lan1, port2 = lan2, port3 = wan. The V6G chassis has exactly
+	 *   three jacks; other port setups seen on sibling MT7621 boards sharing
+	 *   this switch (the extra lllwl wiring) are not populated here, so
+	 *   port0/port4 stay disabled. */
 	ports {
 		port@0 {
 			status = "disabled";

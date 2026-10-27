@@ -1,5 +1,5 @@
 #!/bin/sh
-# Qihoo 360 V6G (qihoo_360t6gs) first-boot defaults
+# Qihoo 360 V6G (qihoo_360v6g) first-boot defaults
 
 # LAN IP keeps continuity with the RAM-initramfs session (192.168.123.1)
 uci set network.lan.ipaddr='192.168.123.1'

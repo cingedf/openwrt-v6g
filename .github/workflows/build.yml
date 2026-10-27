@@ -1,4 +1,4 @@
-name: Build Qihoo 360 V6G (360t6gs) - OpenWrt 25.12.5
+name: Build Qihoo 360 V6G - OpenWrt 25.12.5
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ env:
 
 jobs:
   build:
-    name: Official OpenWrt build for Qihoo 360 V6G (qihoo_360t6gs)
+    name: Official OpenWrt build for Qihoo 360 V6G
     runs-on: ubuntu-24.04
     timeout-minutes: 360
 
@@ -114,7 +114,7 @@ jobs:
 
           for symbol in \
             CONFIG_TARGET_ramips CONFIG_TARGET_ramips_mt7621 \
-            CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360t6gs CONFIG_TARGET_ROOTFS_SQUASHFS \
+            CONFIG_TARGET_ramips_mt7621_DEVICE_qihoo_360v6g CONFIG_TARGET_ROOTFS_SQUASHFS \
             CONFIG_PACKAGE_base-files CONFIG_PACKAGE_busybox CONFIG_PACKAGE_procd \
             CONFIG_PACKAGE_netifd CONFIG_PACKAGE_ubus CONFIG_PACKAGE_ubusd CONFIG_PACKAGE_uci \
             CONFIG_PACKAGE_logd CONFIG_PACKAGE_dropbear CONFIG_PACKAGE_dnsmasq-full \
@@ -175,14 +175,14 @@ jobs:
           cp "$GITHUB_WORKSPACE/source-info.txt" "$GITHUB_WORKSPACE/artifacts/"
           cp "$GITHUB_WORKSPACE/feeds-info.txt" "$GITHUB_WORKSPACE/artifacts/"
           cp "$GITHUB_WORKSPACE/ccache-stats.txt" "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
-          cp "$TARGET_DIR"/*qihoo_360t6gs*.bin "$GITHUB_WORKSPACE/artifacts/"
+          cp "$TARGET_DIR"/*qihoo_360v6g*.bin "$GITHUB_WORKSPACE/artifacts/"
           cp "$TARGET_DIR"/*.manifest "$GITHUB_WORKSPACE/artifacts/"
           cp "$TARGET_DIR"/config.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
           cp "$TARGET_DIR"/feeds.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
           cp "$TARGET_DIR"/version.buildinfo "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
 
           for suffix in initramfs-kernel.bin squashfs-factory.bin squashfs-sysupgrade.bin; do
-            find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name "*qihoo_360t6gs*$suffix" -print -quit | grep -q . \
+            find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f -name "*qihoo_360v6g*$suffix" -print -quit | grep -q . \
               || { echo "::error::Missing V6G image type: $suffix"; exit 1; }
           done
 
@@ -199,7 +199,7 @@ jobs:
           if grep -Eq '^(htop|tcpdump|iperf3|bash|nano|ddns-scripts|irqbalance|openssh-sftp-server|ip-full)([[:space:]]|$)' "$MANIFEST"; then
             echo '::error::A pruned package leaked into the image manifest'; exit 1
           fi
-          (cd "$GITHUB_WORKSPACE/artifacts" && sha256sum *qihoo_360t6gs*.bin > SHA256SUMS)
+          (cd "$GITHUB_WORKSPACE/artifacts" && sha256sum *qihoo_360v6g*.bin > SHA256SUMS)
           ls -lh "$GITHUB_WORKSPACE/artifacts"
           df -h
 

@@ -1,10 +1,10 @@
 
-define Device/qihoo_360t6gs
+define Device/qihoo_360v6g
   $(Device/nand)
   $(Device/uimage-lzma-loader)
   DEVICE_VENDOR := Qihoo
   DEVICE_MODEL := 360 V6G
-  DEVICE_DTS := mt7621_qihoo_360t6gs
+  DEVICE_DTS := mt7621_qihoo_360v6g
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   KERNEL_SIZE := 4096k
@@ -14,4 +14,4 @@ define Device/qihoo_360t6gs
 	check-size
   DEVICE_PACKAGES := kmod-mt7915-firmware kmod-usb3 kmod-usb-ledtrig-usbport
 endef
-TARGET_DEVICES += qihoo_360t6gs
+TARGET_DEVICES += qihoo_360v6g
