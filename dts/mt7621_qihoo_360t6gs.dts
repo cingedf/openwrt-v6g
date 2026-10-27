@@ -98,35 +98,26 @@
 			};
 		};
 
+		/* Stock bootloader-era data partitions (Config, config, factory2,
+		 * plugin 36MiB, log 4MiB) merged into one bare 41MiB "storage"
+		 * block, deliberately NOT mounted by OpenWrt. Opened up for future
+		 * use: manual jffs2 / kernel-copy target, or a second factory
+		 * image. Everything stock-only is gone; the layout after 0x2a00000
+		 * is V6G OpenWrt owned end-to-end. */
 		partition@100000 {
-			label = "Config";
-			reg = <0x100000 0x40000>;
+			label = "storage";
+			reg = <0x100000 0x2900000>;
 		};
 
-		partition@140000 {
-			label = "config";
-			reg = <0x140000 0x80000>;
-			read-only;
-		};
-
-		partition@1c0000 {
-			label = "factory2";
-			reg = <0x1c0000 0x40000>;
-		};
-
-		partition@200000 {
-			label = "plugin";
-			reg = <0x200000 0x2400000>;
-		};
-
-		partition@2600000 {
-			label = "log";
-			reg = <0x2600000 0x400000>;
-		};
-
+		/* firmware spans straight to the end of the 128MiB flash. The
+		 * kernel child stays at absolute offset 0x2a00000, which is
+		 * DragonBluep U-Boot's built-in CONFIG_DEFAULT_NAND_KERNEL_OFFSET,
+		 * so every boot path (mtkautoboot + web failsafe + TFTP recovery)
+		 * keeps working byte-for-byte. The ubi child grows to 82MiB and
+		 * rootfs_data autoresize turns that into ~75MiB writable overlay. */
 		firmware: partition@2a00000 {
 			label = "firmware";
-			reg = <0x2a00000 0x2800000>;
+			reg = <0x2a00000 0x5600000>;
 
 			compatible = "fixed-partitions";
 			partition@0 {
@@ -136,23 +127,7 @@
 
 			partition@400000 {
 				label = "ubi";
-				reg = <0x400000 0x2400000>;
-			};
-		};
-
-		partition@5200000 {
-			label = "firmware-1";
-			reg = <0x5200000 0x2800000>;
-
-			compatible = "fixed-partitions";
-			partition@0 {
-				label = "kernel_1";
-				reg = <0x0 0x400000>;
-			};
-
-			partition@400000 {
-				label = "ubi_1";
-				reg = <0x400000 0x2400000>;
+				reg = <0x400000 0x5200000>;
 			};
 		};
 	};
