@@ -37,8 +37,17 @@ cat "$GITHUB_WORKSPACE/mt7621-qihoo-device.mk" >> target/linux/ramips/image/mt76
 #    ucidef_set_interfaces_lan_wan() call APPENDS members to the /etc/board.json
 #    "lan" ports array, so a late override leaves the generic catch-all's
 #    phantom lan3/lan4 jacks in board.json forever (LuCI renders its Port
-#    status cards straight from that file). One case branch, painted once:
-net02='target/linux/ramips/base-files/etc/board.d/02_network'
+#    status cards straight from that file). One case branch, painted once.
+#    Upstream moved the file into a per-subtarget dir for v25.x
+#    (target/linux/ramips/mt7621/base-files/...) while v24.x still keeps the
+#    target-level path; resolve whichever exists so the script survives both.
+for cand in \
+    'target/linux/ramips/mt7621/base-files/etc/board.d/02_network' \
+    'target/linux/ramips/base-files/etc/board.d/02_network'
+do
+  [ -f "$cand" ] && net02="$cand" && break
+done
+[ -n "${net02:-}" ] || die '02_network not found (neither v25 subtarget nor v24 target path)'
 grep -q 'qihoo,360v6g' "$net02" && die '02_network already has the V6G case'
 python3 - "$net02" <<'PYEOF'
 import sys
