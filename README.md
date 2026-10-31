@@ -15,6 +15,25 @@ Follows the minimal-overlay pattern of `cingedf/openwrt-rm2100-ipv4`: official O
 - `files/etc/sysctl.d/15-v6g-memory` — `vm.swappiness=15` for the proxy-core RAM workload
 - `files/usr/sbin/v6g-mihomo-wiring` — idempotent wiring helper: preconditions, service refresh, dnsmasq → mihomo fake-ip DNS (+ safety net), swappiness migration, zram zstd switch (only if the kernel actually has the backend), end-to-end smoke test
 - `diy-part2.sh` — overlays the above, registers the V6G case inside the upstream ramips `02_network` (see why below), AND patches one core kernel-config line into the ramips `config-6.12`: `CONFIG_ZRAM_BACKEND_ZSTD=y` (zram zstd backend for the proxy workload; OpenWrt has no package-level symbol for it, and the build Assert step verifies the line survived defconfig)
+- `config` also enables `luci-proto-ppp` + `luci-i18n-base-zh-cn` — the base-router bring-up kit so PPPoE dial-up and the Chinese web UI are hand-configurable in LuCI
+
+## Base bring-up path (what a fresh image can and cannot do out of the box)
+
+Boot fresh `factory.bin` once and the box is already a working CN main router
+except for the two operator knobs (dial-up + WiFi key):
+
+1. Modem/ONT → **wan** jack (middle bottom port), PC → lan1/lan2.
+2. LuCI at `http://192.168.123.1` SSH `root`/`password`.
+3. System → Language: 简体中文 (i18n zh-cn package included).
+4. Network → Interfaces → WAN → Protocol **PPPoE** → ISP account + password → save & apply. (`luci-proto-ppp` provides this page.)
+5. Network → Wireless → both SSIDs (`Redmi_579E_2.4` / `Redmi_579E`) ship **open** on purpose for first contact — set WPA2 key immediately.
+6. Sys LED goes **green solid** when the WAN link is up (red solid = no internet; the v6g-led service watches the default route).
+
+Deliberate base-only decisions (all reversible via uci):
+
+- **IPv6 off at first boot**: stock `wan6` stub is removed by `99-v6g-firstboot`; the proxy layer is IPv4-only and any v6 prefix would bypass the mihomo tproxy path. To re-enable: re-create `wan6` + offer RA/DHCPv6 on lan.
+- **NTP pinned to CN servers** (223.5.5.5, cn.pool.ntp.org) — REALITY handshakes depend on a sane clock.
+- **Proxy layer dormant**: `mihomo-v6g` init/nft/sysctl/wiring files ship but nothing is enabled; no mihomo runs at all until the operator deploys the core binary (`/etc/ShellCrash/CrashCore` + `configs/config.yaml`) and runs `/usr/sbin/v6g-mihomo-wiring`. The image alone never dials the proxy.
 
 ## Why the port map is patched in `02_network`
 

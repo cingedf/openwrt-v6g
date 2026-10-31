@@ -131,7 +131,8 @@ jobs:
             CONFIG_PACKAGE_kmod-mt76-core CONFIG_PACKAGE_kmod-mt7915e CONFIG_PACKAGE_kmod-mt7915-firmware \
             CONFIG_PACKAGE_kmod-usb3 CONFIG_PACKAGE_kmod-usb-storage \
             CONFIG_PACKAGE_luci CONFIG_PACKAGE_luci-base CONFIG_PACKAGE_luci-mod-admin-full \
-            CONFIG_PACKAGE_luci-theme-bootstrap CONFIG_PACKAGE_uhttpd CONFIG_PACKAGE_rpcd; do
+            CONFIG_PACKAGE_luci-theme-bootstrap CONFIG_PACKAGE_luci-proto-ppp \
+            CONFIG_PACKAGE_luci-i18n-base-zh-cn CONFIG_PACKAGE_uhttpd CONFIG_PACKAGE_rpcd; do
             expect_y "$symbol"
           done
 
@@ -201,7 +202,7 @@ jobs:
                      kmod-mt7915e kmod-mt7915-firmware kmod-mac80211 kmod-mt76-core \
                      kmod-usb3 kmod-usb-storage kmod-tun kmod-zram zram-swap \
                      kmod-nft-socket kmod-nft-tproxy kmod-nf-tproxy \
-                     luci-base luci-mod-admin-full uhttpd rpcd; do
+                     luci-base luci-mod-admin-full luci-proto-ppp luci-i18n-base-zh-cn uhttpd rpcd; do
             grep -Eq "^${pkg}[[:space:]]" "$MANIFEST" || { echo "::error::Required package missing from manifest: $pkg"; exit 1; }
           done
           if grep -Eq '^(htop|tcpdump|iperf3|bash|nano|ddns-scripts|irqbalance|openssh-sftp-server|ip-full)([[:space:]]|$)' "$MANIFEST"; then

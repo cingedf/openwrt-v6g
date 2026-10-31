@@ -17,6 +17,10 @@ if [ -n "$(uci -q get network.wan)" ]; then
 	uci set network.wan.device='wan'
 fi
 
+# IPv6 is deliberately off at base: the proxy layer is IPv4-only, and any future
+# v6 prefix would leak around the mihomo tproxy path. Remove the stock wan6 stub.
+uci -q delete network.wan6
+
 uci commit network
 
 # ShellCrash uses nftables TProxy. Hardware/software flow offloading bypasses the
@@ -30,6 +34,13 @@ uci commit firewall
 uci -q set system.@system[0].zram_size_mb='64'
 uci -q set system.@system[0].zram_comp_algo='lzo'
 uci -q set system.@system[0].zram_priority='100'
+
+# Time from CN NTP servers: pool.ntp.org is unreliable in CN and REALITY
+# handshakes need a sane clock (livelock seen on first bring-up).
+uci -q del system.@system[0].ntp_server
+uci -q add_list system.@system[0].ntp_server='223.5.5.5'
+uci -q add_list system.@system[0].ntp_server='cn.pool.ntp.org'
+
 uci commit system
 [ -x /etc/init.d/zram ] && /etc/init.d/zram enable
 
