@@ -75,12 +75,14 @@ grep -F 'ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"' "$net02" >/dev/null   
 # 4b) Enable the zram zstd compression backend as a CORE kernel option. The 6.12
 #     zram driver gates its backends behind CONFIG_ZRAM_BACKEND_* booleans and
 #     only lzo/lzo-rle default to on; OpenWrt has no package-level symbol for it,
-#     so the ramips target kernel config is patched directly (idempotent).
+#     so the kernel config is patched directly (idempotent). NOTE: since the
+#     v25.12.x layout the per-subtarget config lives in the subtarget folder
+#     (target/linux/ramips/mt7621/config-6.12); the generic config is not touched.
 #     First-boot comp algo stays lzo (safe on kernels built before this line);
 #     v6g-mihomo-wiring flips uci zram_comp_algo to zstd only after verifying the
 #     backend is actually visible in the running kernel.
-kcfg=target/linux/ramips/config-6.12
-[ -f "$kcfg" ] || die "kernel config not found: $kcfg (not a ramips 6.12 tree?)"
+kcfg=target/linux/ramips/mt7621/config-6.12
+[ -f "$kcfg" ] || die "kernel config not found: $kcfg (not a ramips mt7621 6.12 tree?)"
 python3 - "$kcfg" <<'PYEOF'
 import sys
 path = sys.argv[1]
