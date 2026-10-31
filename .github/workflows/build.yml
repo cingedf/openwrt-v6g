@@ -154,11 +154,14 @@ jobs:
           expect_y CONFIG_BUSYBOX_DEFAULT_PASSWD
 
           # zram zstd backend is a CORE kernel knob applied by diy-part2.sh to
-          # the ramips config-6.12; assert the patched line survived defconfig
+          # the mt7621 subtarget config-6.12 (v25.12.x moved target configs out
+          # of the target root); assert the patched line survived defconfig
           # resolution (defconfig may prune symbols, never add them).
-          grep -Fqx 'CONFIG_ZRAM_BACKEND_ZSTD=y' "$SOURCE_DIR/target/linux/ramips/config-6.12" \
-            || { echo '::error::CONFIG_ZRAM_BACKEND_ZSTD=y missing from ramips config-6.12'; exit 1; }
-          echo "[OK] CONFIG_ZRAM_BACKEND_ZSTD=y in target kernel config"
+          grep -Fqx 'CONFIG_ZRAM_BACKEND_ZSTD=y' "$SOURCE_DIR/target/linux/ramips/mt7621/config-6.12" \
+            || { echo '::error::CONFIG_ZRAM_BACKEND_ZSTD=y missing from mt7621 config-6.12'; exit 1; }
+          grep -Fqx 'CONFIG_ZRAM_BACKEND_ZSTD=y' .config \
+            || { echo '::error::defconfig dropped CONFIG_ZRAM_BACKEND_ZSTD=y'; exit 1; }
+          echo "[OK] CONFIG_ZRAM_BACKEND_ZSTD=y in target kernel config and resolved .config"
 
           cp .config "$GITHUB_WORKSPACE/artifacts/resolved-openwrt.config"
 
