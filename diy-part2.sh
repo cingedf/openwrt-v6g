@@ -72,28 +72,6 @@ PYEOF
 grep -F 'qihoo,360v6g)' "$net02" >/dev/null || die 'V6G case missing in patched 02_network'
 grep -F 'ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"' "$net02" >/dev/null   || die 'V6G port map missing in patched 02_network'
 
-# 4b) Enable the zram zstd compression backend as a CORE kernel option. The 6.12
-#     zram driver gates its backends behind CONFIG_ZRAM_BACKEND_* booleans and
-#     only lzo/lzo-rle default to on; OpenWrt has no package-level symbol for it,
-#     so the kernel config is patched directly (idempotent). NOTE: since the
-#     v25.12.x layout the per-subtarget config lives in the subtarget folder
-#     (target/linux/ramips/mt7621/config-6.12); the generic config is not touched.
-#     First-boot comp algo stays lzo (safe on kernels built before this line);
-#     v6g-mihomo-wiring flips uci zram_comp_algo to zstd only after verifying the
-#     backend is actually visible in the running kernel.
-kcfg=target/linux/ramips/mt7621/config-6.12
-[ -f "$kcfg" ] || die "kernel config not found: $kcfg (not a ramips mt7621 6.12 tree?)"
-python3 - "$kcfg" <<'PYEOF'
-import sys
-path = sys.argv[1]
-lines = open(path, encoding='utf-8').read().splitlines()
-lines = [l for l in lines if not l.startswith('CONFIG_ZRAM_BACKEND_ZSTD')]
-lines.append('# V6G: zram zstd backend for the proxy-core workload (R3 memory tuning)')
-lines.append('CONFIG_ZRAM_BACKEND_ZSTD=y')
-open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines) + '\n')
-PYEOF
-grep -Fq 'CONFIG_ZRAM_BACKEND_ZSTD=y' "$kcfg" || die 'ZRAM_BACKEND_ZSTD patch failed'
-
 # 5) rootfs overlay (uci-defaults applied at first boot)
 mkdir -p files
 cp -a "$GITHUB_WORKSPACE/files/." files/
