@@ -1,0 +1,13 @@
+#!/usr/sbin/nft -f
+# mihomo tproxy plumbing for V6G LAN clients. IPv4 only (IPv6 disabled on this router).
+# Independent table inet mihomo: survives fw4 reload; recreated by init.d at boot/start.
+table inet mihomo {
+	chain prerouting_mihomo {
+		type filter hook prerouting priority filter; policy accept;
+		iifname "lo" return
+		fib daddr type local return
+		ip daddr {127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 239.0.0.0/8, 248.0.0.0/5} return
+		# fake-ip 198.18.0.0/15 is intentionally NOT skipped -> goes into tproxy
+		meta l4proto { tcp, udp } meta mark set 1 tproxy ip to :7893 meta mark set 1 accept comment "mihomo tproxy"
+	}
+}

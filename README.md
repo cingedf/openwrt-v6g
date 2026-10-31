@@ -6,11 +6,15 @@ This is not a port of a sibling board: the board identity, DTS, port map and NAN
 
 Follows the minimal-overlay pattern of `cingedf/openwrt-rm2100-ipv4`: official OpenWrt source is cloned at build time; this repository injects only:
 
-- `config/v6g_minimal.config` — sparse seed config
+- `config/v6g_minimal.config` — sparse seed config (PPPoE main-router + direct-drive mihomo proxy gateway; ShellCrash shell framework NOT used)
 - `dts/mt7621_qihoo_360v6g.dts` — device tree: board id `qihoo,360v6g`, 2 LAN + 1 WAN DSA ports, USB xhci, factory nvmem EEPROM/MAC, layout v2
 - `mt7621-qihoo-device.mk` — `Device/qihoo_360v6g` recipe appended to the official `mt7621.mk`
 - `files/etc/uci-defaults/99-v6g-firstboot` — first-boot defaults (LAN 192.168.123.1, port/bridge sanity, CN wireless country, LED service, ZRAM, root password)
-- `diy-part2.sh` — overlays the above AND registers the V6G case inside the upstream ramips `02_network` (see why below)
+- `files/etc/init.d/mihomo-v6g` — procd init that direct-drives the mihomo core (`/etc/ShellCrash/CrashCore`) with respawn; loads the independent nft tproxy table and fwmark plumbing itself (no ShellCrash start.sh — that path caused a busybox fork storm)
+- `files/etc/nftables-mihomo.nft` — independent `table inet mihomo` prerouting tproxy rules (survives fw4 reload; fake-ip range intentionally not skipped)
+- `files/etc/sysctl.d/15-v6g-memory` — `vm.swappiness=15` for the proxy-core RAM workload
+- `files/usr/sbin/v6g-mihomo-wiring` — idempotent wiring helper: preconditions, service refresh, dnsmasq → mihomo fake-ip DNS (+ safety net), swappiness migration, zram zstd switch (only if the kernel actually has the backend), end-to-end smoke test
+- `diy-part2.sh` — overlays the above, registers the V6G case inside the upstream ramips `02_network` (see why below), AND patches one core kernel-config line into the ramips `config-6.12`: `CONFIG_ZRAM_BACKEND_ZSTD=y` (zram zstd backend for the proxy workload; OpenWrt has no package-level symbol for it, and the build Assert step verifies the line survived defconfig)
 
 ## Why the port map is patched in `02_network`
 

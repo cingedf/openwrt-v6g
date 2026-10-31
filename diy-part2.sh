@@ -3,7 +3,9 @@
 # Same sparse-overlay pattern as cingedf/openwrt-rm2100-ipv4: no core source
 # patches except registering the V6G case inside the ramips 02_network board
 # script, plus sparse-config seed + custom DTS + appended Device block + UCI
-# defaults overlay. Each build must always run in a pristine checkout.
+# defaults overlay + ONE core-kernel-config line (CONFIG_ZRAM_BACKEND_ZSTD,
+# there is no package-level symbol for it). Each build must always run in a
+# pristine checkout.
 set -Eeuo pipefail
 
 log() { printf '[V6G] %s\n' "$*"; }
@@ -14,6 +16,10 @@ die() { printf '::error::%s\n' "$*" >&2; exit 1; }
 [ -f "$GITHUB_WORKSPACE/dts/mt7621_qihoo_360v6g.dts" ]             || die 'Missing V6G device dts'
 [ -f "$GITHUB_WORKSPACE/mt7621-qihoo-device.mk" ]                  || die 'Missing Device block append'
 [ -f "$GITHUB_WORKSPACE/files/etc/uci-defaults/99-v6g-firstboot" ] || die 'Missing first-boot UCI defaults'
+[ -f "$GITHUB_WORKSPACE/files/etc/init.d/mihomo-v6g" ]             || die 'Missing direct-drive mihomo init script'
+[ -f "$GITHUB_WORKSPACE/files/etc/nftables-mihomo.nft" ]           || die 'Missing mihomo nft tproxy table'
+[ -f "$GITHUB_WORKSPACE/files/etc/sysctl.d/15-v6g-memory" ]        || die 'Missing memory-tuning sysctl'
+[ -f "$GITHUB_WORKSPACE/files/usr/sbin/v6g-mihomo-wiring" ]        || die 'Missing mihomo wiring helper'
 [ -f Makefile ] && [ -d target/linux/ramips ] || die 'Run from official OpenWrt source root'
 
 ref="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
@@ -66,9 +72,31 @@ PYEOF
 grep -F 'qihoo,360v6g)' "$net02" >/dev/null || die 'V6G case missing in patched 02_network'
 grep -F 'ucidef_set_interfaces_lan_wan "lan1 lan2" "wan"' "$net02" >/dev/null   || die 'V6G port map missing in patched 02_network'
 
+# 4b) Enable the zram zstd compression backend as a CORE kernel option. The 6.12
+#     zram driver gates its backends behind CONFIG_ZRAM_BACKEND_* booleans and
+#     only lzo/lzo-rle default to on; OpenWrt has no package-level symbol for it,
+#     so the ramips target kernel config is patched directly (idempotent).
+#     First-boot comp algo stays lzo (safe on kernels built before this line);
+#     v6g-mihomo-wiring flips uci zram_comp_algo to zstd only after verifying the
+#     backend is actually visible in the running kernel.
+kcfg=target/linux/ramips/config-6.12
+[ -f "$kcfg" ] || die "kernel config not found: $kcfg (not a ramips 6.12 tree?)"
+python3 - "$kcfg" <<'PYEOF'
+import sys
+path = sys.argv[1]
+lines = open(path, encoding='utf-8').read().splitlines()
+lines = [l for l in lines if not l.startswith('CONFIG_ZRAM_BACKEND_ZSTD')]
+lines.append('# V6G: zram zstd backend for the proxy-core workload (R3 memory tuning)')
+lines.append('CONFIG_ZRAM_BACKEND_ZSTD=y')
+open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines) + '\n')
+PYEOF
+grep -Fq 'CONFIG_ZRAM_BACKEND_ZSTD=y' "$kcfg" || die 'ZRAM_BACKEND_ZSTD patch failed'
+
 # 5) rootfs overlay (uci-defaults applied at first boot)
 mkdir -p files
 cp -a "$GITHUB_WORKSPACE/files/." files/
 chmod 0755 files/etc/uci-defaults/99-v6g-firstboot
+chmod 0755 files/etc/init.d/mihomo-v6g
+chmod 0755 files/usr/sbin/v6g-mihomo-wiring
 
 log "Official OpenWrt ${ref} ($(git rev-parse --short=12 HEAD)) + qihoo_360v6g board overlay applied."

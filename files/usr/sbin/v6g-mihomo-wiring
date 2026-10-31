@@ -1,0 +1,90 @@
+#!/bin/sh
+# v6g-mihomo-wiring: idempotent one-shot wiring for the direct-drive mihomo
+# proxy gateway on Qihoo 360 V6G (self-built OpenWrt 25.12.5).
+#
+# Run manually (or by the first-boot flow) any number of times; every step is
+# checked and non-destructive. busybox-safe: no pkill (pgrep+kill loops only),
+# no bashisms, no external deps beyond base system + curl.
+#
+# Steps:
+#   0) precondition: mihomo binary + config + nft table + init script exist
+#   1) service: enable + restart (procd, idempotent)
+#   2) DNS: one-time dhcp backup, then dnsmasq -> mihomo (127.0.0.1#1053) with
+#      an unconditional safety net (223.5.5.5), noresolv
+#   3) memory: ensure vm.swappiness=15 via sysctl.d; migrate any stale value
+#      out of /etc/sysctl.conf
+#   4) zram: switch comp algo to zstd ONLY if the running kernel has the backend
+#      (self-built kernels ship CONFIG_ZRAM_BACKEND_ZSTD=y via diy-part2.sh)
+#   5) smoke test through the local mixed-port proxy
+#
+# Rollback points are documented in the local audit doc
+# (docs/审计终局报告与方案G部署记录_2026-10-31.md on the management PC archive).
+
+TAG=v6g-wiring
+LOG() { logger -t "$TAG" "$*"; printf '[%s] %s\n' "$TAG" "$*"; }
+die() { logger -t "$TAG" "FATAL: $*"; printf '[%s] FATAL: %s\n' "$TAG" "$*"; exit 1; }
+
+BIN=/etc/ShellCrash/CrashCore
+CFGF=/etc/ShellCrash/configs/config.yaml
+NFTF=/etc/nftables-mihomo.nft
+SV=/etc/init.d/mihomo-v6g
+
+# 0) preconditions (ShellCrash kit must be present as the mihomo carrier)
+[ -x "$BIN" ]  || die "mihomo binary missing: $BIN (restore ShellCrash kit first)"
+[ -f "$CFGF" ] || die "mihomo config missing: $CFGF"
+[ -f "$NFTF" ] || die "nft table file missing: $NFTF"
+[ -f "$SV" ]   || die "init script missing: $SV"
+
+# 1) service: enable + idempotent refresh
+"$SV" enable >/dev/null 2>&1
+"$SV" restart
+sleep 5
+ubus call service list | grep -q '"mihomo-v6g"' || die "procd service did not come up"
+
+# 2) DNS: one-time backup, then rewire dnsmasq to mihomo (+ safety net)
+if [ ! -f /etc/config/dhcp.b4_mihomo_dns ]; then
+	cp -f /etc/config/dhcp /etc/config/dhcp.b4_mihomo_dns
+	LOG "dhcp uci backed up (dhcp.b4_mihomo_dns)"
+fi
+uci -q delete dhcp.@dnsmasq[0].server
+uci add_list dhcp.@dnsmasq[0].server='127.0.0.1#1053'
+uci add_list dhcp.@dnsmasq[0].server='223.5.5.5'
+uci set dhcp.@dnsmasq[0].noresolv='1'
+uci commit dhcp
+/etc/init.d/dnsmasq restart
+
+# 3) memory: swappiness from sysctl.d; purge stale entries in sysctl.conf
+if [ -f /etc/sysctl.conf ] && grep -q '^vm\.swappiness=' /etc/sysctl.conf; then
+	sed -i '/^vm\.swappiness=/d' /etc/sysctl.conf
+	LOG "migrated vm.swappiness out of /etc/sysctl.conf"
+fi
+if ! grep -q '^vm\.swappiness=' /etc/sysctl.d/15-v6g-memory 2>/dev/null; then
+	printf 'vm.swappiness=15\n' > /etc/sysctl.d/15-v6g-memory
+fi
+sysctl -q -w vm.swappiness=15
+
+# 4) zram: zstd only when the running kernel really has the backend
+case "$(cat /sys/block/zram0/comp_algorithm 2>/dev/null)" in
+	*zstd*)
+		if [ "$(uci -q get system.@system[0].zram_comp_algo)" != 'zstd' ]; then
+			uci set system.@system[0].zram_comp_algo='zstd'
+			uci commit system
+			[ -x /etc/init.d/zram ] && /etc/init.d/zram restart
+			LOG "zram comp algo switched to zstd"
+		fi
+		;;
+	*)
+		LOG "kernel lacks zram zstd backend; keeping lzo (needs CONFIG_ZRAM_BACKEND_ZSTD build)"
+		;;
+esac
+
+# 5) smoke test via local mixed-port proxy
+sleep 2
+code=$(curl -s -m 15 -x http://127.0.0.1:7890 -o /dev/null -w '%{http_code}' http://www.gstatic.com/generate_204)
+if [ "$code" = '204' ]; then
+	LOG "PASS: proxy path end-to-end OK"
+else
+	LOG "FAIL: proxy response '$code'. If nodes show REALITY authentication failed, this is the RM2100 double-hijack (see docs §3.5: v6g-skip nft exemption on uplink)"
+fi
+
+LOG "wiring done"

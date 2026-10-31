@@ -99,7 +99,7 @@ jobs:
             done
           } | tee "$GITHUB_WORKSPACE/feeds-info.txt"
 
-      - name: Assert target, ShellCrash requirements and package pruning
+      - name: Assert target, mihomo runtime requirements and package pruning
         run: |
           set -Eeuo pipefail
           cd "$SOURCE_DIR"
@@ -142,14 +142,22 @@ jobs:
 
           expect_y CONFIG_DROPBEAR_SCP
 
-          # BusyBox applets ShellCrash and the first-boot script rely on. These are
-          # default-on applets, asserted through the DEFAULT_* symbols that actually
-          # exist in .config (CONFIG_BUSYBOX_CONFIG_* requires BUSYBOX_CUSTOM=y).
+          # BusyBox applets the v6g first-boot script and runtime wiring rely on.
+          # These are default-on applets, asserted through the DEFAULT_* symbols
+          # that actually exist in .config (CONFIG_BUSYBOX_CONFIG_* requires
+          # BUSYBOX_CUSTOM=y).
           expect_y CONFIG_BUSYBOX_DEFAULT_CROND
           expect_y CONFIG_BUSYBOX_DEFAULT_CRONTAB
           expect_y CONFIG_BUSYBOX_DEFAULT_SWAPON
           expect_y CONFIG_BUSYBOX_DEFAULT_MKSWAP
           expect_y CONFIG_BUSYBOX_DEFAULT_PASSWD
+
+          # zram zstd backend is a CORE kernel knob applied by diy-part2.sh to
+          # the ramips config-6.12; assert the patched line survived defconfig
+          # resolution (defconfig may prune symbols, never add them).
+          grep -Fqx 'CONFIG_ZRAM_BACKEND_ZSTD=y' "$SOURCE_DIR/target/linux/ramips/config-6.12" \
+            || { echo '::error::CONFIG_ZRAM_BACKEND_ZSTD=y missing from ramips config-6.12'; exit 1; }
+          echo "[OK] CONFIG_ZRAM_BACKEND_ZSTD=y in target kernel config"
 
           cp .config "$GITHUB_WORKSPACE/artifacts/resolved-openwrt.config"
 
